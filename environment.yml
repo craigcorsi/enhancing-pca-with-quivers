@@ -7,24 +7,25 @@ dependencies:
   - cudatoolkit >= 11.8
   - gravis
   - jupyter 
-  - matplotlib >= 3.8
-  - networkx >= 3.3
-  - openpyxl >= 3.0
-  - pandas >= 2.0
+  - matplotlib
+  - networkx
+  - openpyxl
+  - pandas
   - pip >= 24.0
-  - pmdarima >= 2.0
+  - pmdarima
   - py-xgboost
   - pyarrow
-  - python == 3.11
+  - python >= 3.11
   - pytorch >= 2.4.1
-  - scikit-learn >= 1.4
+  - scikit-learn
   - selenium
   - sqlalchemy
   - torchaudio
   - torchvision
-  - xgboost >= 2.0.3
+  - xgboost
   - pip:
+      - igraph
       - lxml
       - pgmpy
-      - plotly == 5.24.0
-      - seaborn == 0.13.2
+      - plotly
+      - seaborn
