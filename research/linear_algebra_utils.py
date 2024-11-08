@@ -89,7 +89,7 @@ def subspace_intersection(basis_list):
 # Construct new basis for a direct sum of vector spaces, along with projection maps
 def direct_sum(bases):
     basis_dimensions = np.array([ len(bases[k]) for k in range(len(bases)) ]) 
-    direct_sum_indices = np.cumsum(basis_dimensions) - basis_dimensions[0]
+    direct_sum_indices = np.concatenate([ np.array([0]), np.cumsum(basis_dimensions) ])[:-1]
     direct_sum_dimension = np.sum(basis_dimensions)
 
     # Embed basis vectors in direct sum
