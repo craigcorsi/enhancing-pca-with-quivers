@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import scipy.linalg as linalg
 
 
@@ -29,7 +30,6 @@ def orthogonal_complement(A):
         
     Aperp = Aperp.T
     Aperp_cols = [np.array(Aperp[i])[:,np.newaxis] for i in range(len(Aperp))]
-
     return Aperp_cols
 
 
@@ -114,3 +114,17 @@ def direct_sum(bases):
         projection_maps.append(proj)
 
     return direct_sum_basis, projection_maps
+
+
+
+
+
+# Project a Pandas series onto a basis of numpy column vector arrays
+def project_series_onto_orth_basis(s, basis):
+    if (len(s) != len(basis[0])):
+        print('Dataframe and basis are not of the same ambient dimension.')
+        return
+    v = np.array(s)
+    components = [v.dot(b)*b for b in basis]
+    proj = np.sum(components, axis=0).reshape(-1)
+    return pd.Series(proj)

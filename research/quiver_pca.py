@@ -66,3 +66,27 @@ def generate_space_of_sections(Q):
 
 
 
+
+
+
+
+# Convert basis vectors in the space of sections from dictionaries to np arrays
+def orthogonalize_section_basis(section_basis, node_list):
+    combined_sections = []
+
+    for b in section_basis:
+        combined_vec = []
+        for node in node_list:
+            combined_vec.append(b[node])
+        combined_vec = np.concatenate(combined_vec)
+        combined_sections.append(combined_vec)
+
+    # Convert to orthonormal basis of column vectors
+    combined_sections = np.concatenate(combined_sections, axis=1)
+    print(combined_sections.shape)
+    combined_sections = linalg.orth(combined_sections)
+    normalized_basis = [combined_sections[:,i] for i in range(len(combined_sections[0]))]
+    normalized_basis = [normalized_basis[i][:,np.newaxis] for i in range(len(normalized_basis))]
+
+    return normalized_basis
+

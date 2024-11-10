@@ -1,5 +1,6 @@
 import networkx as nx
 import numpy as np
+import pandas as pd
 import scipy.linalg as linalg
 
 from linear_algebra_utils import *
