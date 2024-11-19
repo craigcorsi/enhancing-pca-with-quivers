@@ -1,27 +1,22 @@
 name: causal-inference-iot
 channels:
   - conda-forge
-  - nvidia
-  - pytorch
 dependencies:
-  - cudatoolkit >= 11.8
   - gravis
   - jupyter 
   - matplotlib
   - networkx
   - openpyxl
   - pandas
+  - pingouin
   - pip >= 24.0
   - pmdarima
   - py-xgboost
   - pyarrow
   - python >= 3.11
-  - pytorch >= 2.4.1
   - scikit-learn
   - selenium
   - sqlalchemy
-  - torchaudio
-  - torchvision
   - xgboost
   - pip:
       - igraph
