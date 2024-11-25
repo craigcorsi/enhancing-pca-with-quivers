@@ -33,45 +33,6 @@ def orthogonal_complement(A):
     return Aperp_cols
 
 
-# Give a basis for the maximal subspace on which the listed linear maps are equal
-def equalizer_subspace(lmap_collection, basis_res=None):
-    lmap_collection = np.stack(lmap_collection, axis = 0)
-
-    # Take differences of maps to generate the subspace orthogonal to the equalizer
-    lmap_diffs = np.diff(lmap_collection, axis = 0)
-    lmap_diffs = np.unstack(lmap_diffs)
-
-    # If a (basis of a) subspace is specified for the domain, express the linear maps in this basis. (The codomain is not restricted.)
-    if basis_res is not None:
-        restricted_diffs = []
-        for M in lmap_diffs:
-            imgs = [M.dot(b) for b in basis_res]
-            M_res = np.concatenate(imgs, axis=1)
-            restricted_diffs.append(M_res)
-        lmap_diffs = restricted_diffs.copy()
-
-    # Concatenate differences to express the kernel as the null space of a single matrix
-    if len(lmap_diffs) == 0:
-        lmap_diffs = [np.zeros(lmap_collection[0].shape)]
-    lmap_diffs = np.concatenate(lmap_diffs)
-
-    eq = linalg.null_space(lmap_diffs).T
-    eq_basis = [np.array(eq[i])[:,np.newaxis] for i in range(len(eq))]
-    
-    # Writes null space basis in the standard basis, if written in the basis of a subspace
-    if basis_res is not None:
-        eq_basis = [np.array(
-            [v[i]*basis_res[i] for i in range(len(v))]
-        ).sum(
-            axis = 0
-        ) for v in eq_basis].copy()
-    
-    return eq_basis
-
-
-
-
-
 # Using (U \cap V)^\perp = (U^\perp + V^\perp)^\perp
 def subspace_intersection(basis_list):
     complement_spanning_set = []
@@ -119,8 +80,9 @@ def direct_sum(bases):
 
 
 
-# Project a Pandas series onto a basis of numpy column vector arrays
-def project_series_onto_orth_basis(s, basis):
+# Project a series onto an orthogonal basis of numpy column array vectors
+# This preserves the length of the series and can be passed to pd.DataFrame.apply()
+def project_onto_orthogonal_basis(s, basis):
     if (len(s) != len(basis[0])):
         print('Dataframe and basis are not of the same ambient dimension.')
         return
@@ -128,3 +90,55 @@ def project_series_onto_orth_basis(s, basis):
     components = [v.dot(b)*b for b in basis]
     proj = np.sum(components, axis=0).reshape(-1)
     return pd.Series(proj)
+
+
+# Project a series onto a subspace, in the coordinates of a given orthonormal basis of numpy column array vectors
+# This returns a new series of length equal to the size of the basis. It cannot be passed to pd.DataFrame.apply()
+def project_onto_subspace(s, basis):
+    v = np.array(s)
+    components = [v.dot(b)[0] for b in basis]
+    return pd.Series(components)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# Give a basis for the maximal subspace on which the listed linear maps are equal
+def equalizer_subspace(lmap_collection, res_basis=None):
+    lmap_collection = np.stack(lmap_collection, axis = 0)
+
+    # Take differences of maps to generate the subspace orthogonal to the equalizer
+    lmap_diffs = np.diff(lmap_collection, axis = 0)
+    lmap_diffs = np.unstack(lmap_diffs)
+
+    # Concatenate differences to express the kernel as the null space of a single matrix
+    if len(lmap_diffs) == 0:
+        lmap_diffs = [np.zeros(lmap_collection[0].shape)]
+    lmap_diffs = np.concatenate(lmap_diffs)
+
+    eq = linalg.null_space(lmap_diffs).T
+    eq_basis = [np.array(eq[i])[:,np.newaxis] for i in range(len(eq))]
+
+    # Intersect with the domain, if the domain is restricted to a subspace
+    if res_basis is not None:
+        eq_basis = subspace_intersection([eq_basis, res_basis])
+    
+    return eq_basis
+
+
+
+
+
+
+
+
