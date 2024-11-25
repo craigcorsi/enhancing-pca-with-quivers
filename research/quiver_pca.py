@@ -46,7 +46,7 @@ def generate_space_of_sections(Q):
         flow_space_intersection = subspace_intersection(list(predecessor_flow_spaces.values()))
         
         path_maps_from_predecessors = [Q_rep_maps[(p,n)].dot(predecessor_flow_maps[p]) for p in predecessors]
-        equalizer_at_n = equalizer_subspace(path_maps_from_predecessors, basis_res = flow_space_intersection)
+        equalizer_at_n = equalizer_subspace(path_maps_from_predecessors, res_basis = flow_space_intersection)
 
         section_space_at_root = subspace_intersection([section_space_at_root, equalizer_at_n])
         
@@ -81,12 +81,27 @@ def orthogonalize_section_basis(section_basis, node_list):
         combined_vec = np.concatenate(combined_vec)
         combined_sections.append(combined_vec)
 
+    # In the case of 0-dimensional basis, return without normalizing
+    if np.power(combined_sections[0],2).sum() < 0.00001:
+        return combined_sections
+
     # Convert to orthonormal basis of column vectors
     combined_sections = np.concatenate(combined_sections, axis=1)
-    print(combined_sections.shape)
     combined_sections = linalg.orth(combined_sections)
     normalized_basis = [combined_sections[:,i] for i in range(len(combined_sections[0]))]
     normalized_basis = [normalized_basis[i][:,np.newaxis] for i in range(len(normalized_basis))]
 
     return normalized_basis
 
+
+        
+
+
+
+
+
+
+
+
+
+    
