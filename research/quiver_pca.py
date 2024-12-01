@@ -28,12 +28,13 @@ def generate_space_of_sections(Q):
 
     flow_spaces = {}
     flow_maps = {}
+    Q_nodes = [node for node in node_list if node != '*']
 
-    root = node_list.pop(0)
-    Q_nodes = node_list.copy()
+    root = node_list[0]
     flow_spaces[root] = nx.get_node_attributes(Q, 'basis')[root].copy()
     dim = len(flow_spaces[root])
     flow_maps[root] = np.eye(dim)
+    node_list.remove(root)
 
     section_space_at_root = Q_bases[root]
 
@@ -75,6 +76,7 @@ def orthogonalize_section_basis(section_basis, node_list):
     combined_sections = []
 
     for b in section_basis:
+        print(b)
         combined_vec = []
         for node in node_list:
             combined_vec.append(b[node])
