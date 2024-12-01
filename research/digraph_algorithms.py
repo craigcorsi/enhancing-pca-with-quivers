@@ -26,12 +26,12 @@ def augment_DAG_with_root(G):
 
     # If G already has a node with label '*', does not construct a root
     if '*' in list(G.nodes):
-        return
+        return G
     
     # If G already has a unique initial node, does not construct a root
     initial_nodes = get_initial_nodes(G)
     if len(initial_nodes) <= 1:
-        return
+        return G
 
     G1 = G.copy()
 
