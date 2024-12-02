@@ -78,25 +78,13 @@ def topological_sort(G):
         print("The directed graph must be acyclic.")
         return
 
+    H = G.copy()
     node_ordering = []
-    current_node_layer = get_initial_nodes(G)
-    undiscovered_nodes = list(G.nodes)
-    for s in current_node_layer:
-        node_ordering.append(s)
-        undiscovered_nodes.remove(s)
 
-    while len(current_node_layer) > 0:
-        # Construct the next node layer using only undiscovered neighbors of the nodes in current_node_layer
-        new_nodes = []
-        for n in current_node_layer:
-            neighbors = list(nx.neighbors(G,n))
-            neighbors = list(filter(lambda s: s in undiscovered_nodes, neighbors))
-
-            for s in neighbors:
-                new_nodes.append(s)
-                node_ordering.append(s)
-                undiscovered_nodes.remove(s)
-        current_node_layer = new_nodes.copy()
+    while len(list(H.nodes)) > 0:
+        current_node_layer = get_initial_nodes(H)
+        node_ordering.extend(current_node_layer)
+        H.remove_nodes_from(current_node_layer)
 
     return node_ordering  
 
