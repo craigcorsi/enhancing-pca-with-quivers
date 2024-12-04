@@ -76,7 +76,6 @@ def orthogonalize_section_basis(section_basis, node_list):
     combined_sections = []
 
     for b in section_basis:
-        print(b)
         combined_vec = []
         for node in node_list:
             combined_vec.append(b[node])
