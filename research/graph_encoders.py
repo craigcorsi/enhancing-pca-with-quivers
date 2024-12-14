@@ -12,6 +12,20 @@ from networkx.readwrite import json_graph
 
 
 
+# JSON decoding, for a dict-of-dicts containing a numpy array for each pair of nodes
+# For encoding, just use NumpyArrayEncoder
+def decode_edge_map_collection(edge_maps_from_file):
+    maps_as_dict = edge_maps_from_file.copy()
+    node_list = maps_as_dict.keys()
+    for head in node_list:
+        tails = maps_as_dict[head].keys()
+        for tail in tails: 
+            maps_as_dict[head][tail] = np.array(maps_as_dict[head][tail])
+    return maps_as_dict
+
+
+
+
 # JSON networkx graph encoding, to be compatible with the output of networkx.readwrite.json_graph.node_link_data
 def encode_JSON_quiver_rep_arrays(Q_as_dict):
     Q_to_file = Q_as_dict.copy()
@@ -127,11 +141,23 @@ def decode_JSON_quiver_rep_arrays(Q_from_file):
 
 
 
+# JSON encoder/decoder subclasses currently used to encode a dict-of-dicts of numpy arrays, for all possible edges
+class NumpyArrayEncoder(JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return JSONEncoder.default(self, obj)
+
+class EdgeMatrixDecoder(JSONDecoder):
+    def decode(self, edge_maps_from_file):       
+        edge_maps = super().decode(edge_maps_from_file)
+        # Decode numpy arrays as lists
+        maps_lists_to_arrays = decode_edge_map_collection(edge_maps)
+        return maps_lists_to_arrays
 
 
 
-
-# JSON encoder/decoder subclasses that allow for compatibility with numpy arrays
+# JSON encoder/decoder subclasses for quiver representations
 
 class NetworkXQuiverRepresentationEncoder(JSONEncoder):
     def default(self, Q):
@@ -143,13 +169,11 @@ class NetworkXQuiverRepresentationEncoder(JSONEncoder):
 
         return Q_arrays_to_lists
 
-
-
 class NetworkXQuiverRepresentationDecoder(JSONDecoder):
     def decode(self, Q_from_file):       
         Q_from_JSON = super().decode(Q_from_file)
         
-        # Encode numpy arrays as lists
+        # Decode numpy arrays as lists
         Q_lists_to_arrays = decode_JSON_quiver_rep_arrays(Q_from_JSON)
        
         # Convert Python dictionary to networkx digraph
