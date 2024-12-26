@@ -2,25 +2,22 @@ name: causal-inference-iot
 channels:
   - conda-forge
 dependencies:
-  - gravis
   - jupyter 
+  - lightgbm
   - matplotlib
+  - mlxtend
   - networkx
   - openpyxl
   - pandas
-  - pingouin
   - pip >= 24.0
-  - pmdarima
   - py-xgboost
   - pyarrow
   - python >= 3.11
   - scikit-learn
   - selenium
-  - sqlalchemy
   - xgboost
   - pip:
       - igraph
       - lxml
-      - pgmpy
       - plotly
       - seaborn
