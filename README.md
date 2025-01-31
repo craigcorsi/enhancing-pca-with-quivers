@@ -110,9 +110,9 @@ In the `data_processing` folder:
 
 In the `research` folder:
 - `10_process_nodewise_PCA` - Reduce dimension at each node using standard PCA; set aside a copy of the data on which PCA is applied to the entire dataset.
-- `11_generate_all_rep_maps` - Use linear regression to estimate the matrix of the representation map between each ordered pair of features
-- `12_construct_subquivers` - Generate quiver representations, one for each possible reference node
-- `13_project_onto_subquiver_sections` - Compute each quiver representation’s space of sections; project the data onto the spaces of sections
+- `11_generate_all_edge_maps` - Use linear regression to estimate the matrix of the representation map between each ordered pair of features
+- `12_construct_quiver_reps` - Generate quiver representations, one for each possible reference node
+- `13_project_onto_quiver_sections` - Compute each quiver representation’s space of sections; project the data onto the spaces of sections
 - `feature_importance_example` - Determine the most important features for an instance of XGBoost; retrieve and display the corresponding quivers
 
 In the `eval` folder:
