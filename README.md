@@ -113,7 +113,6 @@ In the `research` folder:
 - `11_generate_all_edge_maps` - Use linear regression to estimate the matrix of the representation map between each ordered pair of features
 - `12_construct_quiver_reps` - Generate quiver representations, one for each possible reference node
 - `13_project_onto_quiver_sections` - Compute each quiver representation’s space of sections; project the data onto the spaces of sections
-- `feature_importance_example` - Determine the most important features for an instance of XGBoost; retrieve and display the corresponding quivers
 
 In the `eval` folder:
 - Several notebooks organizing model evaluation by model type.
