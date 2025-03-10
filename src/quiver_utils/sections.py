@@ -15,6 +15,14 @@ from src.quiver_utils.elementwise_models import *
 
 
 class QuiverRepSections:
+    """
+    Calculates a basis for the space of sections of a quiver representation, then projects a dataset onto
+    the basis. Implements Algorithm 3 from p18 of https://arxiv.org/abs/2104.10666
+
+    Parameters:
+        node_structure (dict): Each node is associated with a list of column names arising from a Pandas DataFrame.
+    """
+
     def __init__(self, node_structure):
         self.node_structure = node_structure
         self.qrep = None
@@ -23,6 +31,15 @@ class QuiverRepSections:
         self.has_0dim_sections = False
 
     def fit(self, qrep):
+        """
+        Calculates a basis for the space of sections for a quiver representation.
+
+        Parameters:
+            qrep: A NetworkX DiGraph with node attributes 'dimension' and 'basis', and edge attribute 'edge_map'
+
+        Returns:
+            None
+        """
         self.qrep = deepcopy(qrep)
         self.qrep_aug = None
         self.qrep_nodes = list(self.qrep.nodes)
@@ -33,10 +50,11 @@ class QuiverRepSections:
         edge_maps = nx.get_edge_attributes(self.qrep, "edge_map")
         if (len(dimensions) == 0) or (len(bases) == 0) or (len(edge_maps) == 0):
             print(
-                "Please define a quiver representation (node attrs 'dimension' and 'basis' and edge attrs 'edge_map')."
+                "Please define a quiver representation (node attrs 'dimension' and 'basis' and edge attr 'edge_map')."
             )
             return
-        # Augments the quiver representation with a root node if one is not specified
+        # Augments the quiver representation with a root node if one is not specified, ensuring the quiver is an
+        # arborescence.
         self.qrep_aug = digraph_utils.augment_DAG_with_root(self.qrep)
 
         # Generate sections
@@ -47,6 +65,16 @@ class QuiverRepSections:
             self.has_0dim_sections = True
 
     def transform(self, X):
+        """
+        Projects a dataset onto the basis of sections calculated by self.fit, if the basis is nonzero.
+
+        Parameters:
+            X: Pandas DataFrame whose columns must include the column names contained in self.node_structure
+
+        Returns:
+            The projection of the data onto the basis of sections, if the basis is nonzero. Otherwise, returns an
+            empty Pandas DataFrame of shape (len(X), 0).
+        """
         # Handle case of 0-dimensional sections
         if self.has_0dim_sections:
             return pd.DataFrame(np.zeros(shape=(len(X), 0)))
@@ -54,14 +82,30 @@ class QuiverRepSections:
         return self.project_onto_section_basis(X)
 
     def get_quiver_rep(self):
+        """
+        Retrieves the quiver representation.
+        """
         return self.qrep
 
     def get_arborescence(self):
+        """
+        Retrieves the arborescence created during self.fit.
+        """
         return self.qrep_aug
 
-    # Generate the space of sections of a quiver representation
     def generate_space_of_sections(self, concatenate=True):
-        # Generates the flow spaces, flow maps, and sections for a quiver representation
+        """
+        Generates the flow spaces, flow maps, and sections for a quiver representation. Implements Algorithm 3 from
+        p18 of https://arxiv.org/abs/2104.10666
+
+        Parameters:
+            concatenate (bool): Set to True by default. When this is set to True, the output basis vectors will be
+            NumPy arrays. When this is set to False, the output basis vectors will be formatted as dictionaries.
+
+        Returns:
+            The projection of the data onto the basis of sections, if the basis is nonzero. Otherwise, returns an
+            empty Pandas DataFrame of shape (len(X), 0).
+        """
 
         qrep = self.qrep
         qrep_aug = self.qrep_aug
@@ -75,7 +119,7 @@ class QuiverRepSections:
         flow_spaces = {}
         flow_maps = {}
 
-        # Compute flow spaces and flow maps for the root of the arborescence
+        # Compute flow spaces and flow maps for the root node of the arborescence
         root = node_list[0]
         flow_spaces[root] = nx.get_node_attributes(qrep_aug, "basis")[root].copy()
         flow_maps[root] = np.eye(len(flow_spaces[root]))
@@ -120,8 +164,10 @@ class QuiverRepSections:
             sections = self.normalize_sections(sections)
         qrep.graph["sections"] = sections
 
-    # Convert basis vectors in the space of sections from dictionaries to np arrays
     def concatenate_sections(self, section_basis):
+        """
+        Convert basis vectors in the space of sections from dictionaries to NumPy arrays
+        """
         concatenated_sections = []
 
         for b in section_basis:
@@ -133,6 +179,9 @@ class QuiverRepSections:
         return concatenated_sections
 
     def normalize_sections(self, section_basis):
+        """
+        Normalize basis vectors in the space of sections
+        """
         # In the case of 0-dimensional basis, return without normalizing
         if np.power(section_basis[0], 2).sum() < 0.00001:
             return section_basis
@@ -148,6 +197,15 @@ class QuiverRepSections:
         return normalized_basis
 
     def project_onto_section_basis(self, X):
+        """
+        Projects a dataset onto the basis of sections calculated by self.fit.
+
+        Parameters:
+            X: Pandas DataFrame passed to self.transform
+
+        Returns:
+            The projection of the data onto the basis of sections.
+        """
         qrep = self.qrep
         display_name = (
             self.qrep.graph["name"]
@@ -163,11 +221,13 @@ class QuiverRepSections:
         sections = qrep.graph["sections"]
 
         X_qrep_proj = [
-            linalg_utils.project_onto_subspace(X_qrep.iloc[i], sections)
+            linalg_utils.project_onto_subspace_in_basis(X_qrep.iloc[i], sections)
             for i in range(len(X_qrep))
         ]
         X_qrep_proj = pd.concat(X_qrep_proj, axis=1).T
 
+        # Dimension reduction for the projected data: only take principal components comprising the top 95%
+        # of explained variance ratio
         pca = TopPrincipalComponents(use_threshold=True, label_name=display_name)
         pca.fit(X_qrep_proj)
         X_qrep_proj = pca.transform(X_qrep_proj)
@@ -176,12 +236,29 @@ class QuiverRepSections:
 
 
 class QuiverRepSectionsMulti:
+    """
+    Projects a dataset onto the space of sections for multiple quiver representations.
+
+    Parameters:
+    node_structure (dict): Each node is associated with a list of column names arising from a Pandas DataFrame.
+    """
+
     def __init__(self, node_structure):
         self.node_structure = node_structure
         self.qrep_list = []
         self.model_list = []
 
     def fit(self, qrep_list):
+        """
+        Calculates a list of bases for the space of sections of multiple quiver representations.
+
+        Parameters:
+            qrep_list: A list of NetworkX DiGraphs with node attributes 'dimension' and 'basis', and edge
+                attribute 'edge_map'
+
+        Returns:
+            None
+        """
         self.model_list = [
             QuiverRepSections(self.node_structure) for i in range(len(qrep_list))
         ]
@@ -191,6 +268,15 @@ class QuiverRepSectionsMulti:
         self.qrep_list = [model.qrep for model in self.model_list]
 
     def transform(self, X):
+        """
+        Projects a dataset onto the bases of sections calculated by self.fit
+
+        Parameters:
+            X: Pandas DataFrame whose columns must include the column names contained in self.node_structure
+
+        Returns:
+            The projection of the data onto the basis of sections.
+        """
         X_quiver_projections = []
         for i in range(len(self.model_list)):
             X_proj = self.model_list[i].transform(X)
@@ -199,4 +285,7 @@ class QuiverRepSectionsMulti:
         return X_quiver_invariant
 
     def get_quiver_reps(self):
+        """
+        Retrieves the list of quiver representations.
+        """
         return self.qrep_list

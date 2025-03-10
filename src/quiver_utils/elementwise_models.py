@@ -7,6 +7,19 @@ from sklearn.linear_model import LinearRegression
 
 
 class TopPrincipalComponents(PCA):
+    """
+    Subclass of sklearn.decomposition.PCA for specifying either the number of principal components or an explained
+        variance threshold.
+
+    Parameters:
+        num_components (int): Specifies the number of principal components if use_threshold is set to False
+        use_threshold (bool): Indicates whether the number of principal components is determined by an explained
+            variance ratio threshold
+        threshold (float): If use_threshold is set to True, then self.transform returns the fewest number of
+            principal components whose explained variance ratio exceeds this value.
+        label_name (str): Column name for the ith principal component, e.g. "z_0"
+    """
+
     def __init__(
         self, num_components=None, use_threshold=False, threshold=0.95, label_name="z"
     ):
@@ -17,12 +30,29 @@ class TopPrincipalComponents(PCA):
         self.label_name = label_name
 
     def fit(self, X):
+        """
+        Fits PCA.
+
+        Parameters:
+            X: Pandas DataFrame with input data
+
+        Returns:
+            None
+        """
         super(TopPrincipalComponents, self).fit(X)
 
     def transform(self, X):
-        # Set the number of components to either the provided value, the number of components above the model's
-        # explained variance ratio, or the total number of columns
+        """
+        Transforms the data and returns the specified number of principal components.
+
+        Parameters:
+            X: Pandas DataFrame with input data
+
+        Returns:
+            The top principal components
+        """
         num_c = self.num_components or len(X.columns)
+        # Determine the number of principal components if using the explained variance ratio threhold
         if self.use_threshold:
             num_c = self.num_components_above_variance_threshold(
                 self.explained_variance_ratio_, threshold=self.threshold
@@ -34,11 +64,35 @@ class TopPrincipalComponents(PCA):
         return X_proj
 
     def num_components_above_variance_threshold(self, evr, threshold=0.95):
+        """
+        Determines the minimum number of principal components that comprise a specified explained variance
+            ratio threshold.
+
+        Parameters:
+            evr: NumPy array of explained variance ratio values
+            threshold: The explained variance ratio threshold
+
+        Returns:
+            The minimum integer i such that the sum of the first i entries exceeds the threshold
+        """
         evr = np.cumsum(evr)
         return int(1 + np.argmax(evr >= threshold))
 
 
 class NodewisePCA:
+    """
+    Custom PCA implementation for datasets whose features are partitioned into subsets that correspond with the nodes
+        of a NetworkX DiGraph. Determines the top principal components for the data features at each node separately.
+
+    Parameters:
+        node_structure (dict): Each node is associated with a list of column names arising from a Pandas DataFrame
+        num_components (int): Specifies a fixed number of principal components to take (whenever this number is less than
+            the dimension of the feature space)
+        use_threshold (bool): When this is set to True, the number of principal components selected is a proportion of
+            explained variance ratio specified by the value of threshold
+        threshold (float): The threshold of explained variance ratio. This is only used when use_threshold is set to True
+    """
+
     def __init__(
         self, node_structure, num_components=None, use_threshold=True, threshold=0.95
     ):
@@ -52,6 +106,17 @@ class NodewisePCA:
         self.threshold = threshold
 
     def fit(self, X):
+        """
+        Fits PCA at each node.
+
+        Parameters:
+            X: Pandas DataFrame whose columns must include the column names contained in self.node_structure
+
+        Returns:
+            None
+        """
+
+        # Fit PCA using TopPrincipalComponents at each node
         for node in self.node_list:
             features_in_node = self.node_structure[node]
             X_at_node = X[features_in_node]
@@ -65,6 +130,15 @@ class NodewisePCA:
             self.nodewise_models[node] = model_at_node
 
     def transform(self, X):
+        """
+        Projects the data in X onto each node's top principal components.
+
+        Parameters:
+            X: Pandas DataFrame whose columns must include the column names contained in self.node_structure
+
+        Returns:
+            A new Pandas DataFrame with the transformed data
+        """
         X_nodewise_PCA = []
         for node in self.node_list:
             features_in_node = self.node_structure[node]
@@ -76,17 +150,40 @@ class NodewisePCA:
         return pd.concat(X_nodewise_PCA, axis=1)
 
     def get_reduced_node_structure(self):
+        """
+        Retrieves the node structure of the PCA-transformed data.
+        """
         return self.reduced_node_structure
 
 
 class EdgeMapRegression:
+    """
+    LinearRegression implementation for datasets whose features are partitioned into subsets that are to correspond with
+    the nodes of a NetworkX DiGraph. Infers a linear map between each distinct ordered pair of nodes.
+
+    Parameters:
+        node_structure (dict): Each node is associated with a list of column names arising from a Pandas DataFrame
+        fit_intercept (bool): Set to False by default. When set to False, the intercept of the linear regression is
+            constrained to be the zero vector
+    """
+
     def __init__(self, node_structure, fit_intercept=False):
         self.node_structure = node_structure
         self.fit_intercept = fit_intercept
         self.edge_maps = None
 
     def fit_transform(self, X, n_splits=5, random_state=None):
-        # Determine representation maps by fitting linear maps between each pair of nodes
+        """
+        Fits the linear maps with k-fold cross-validation and stores the maps in a dict-of-dicts.
+
+        Parameters:
+            X: Pandas DataFrame with the data to be transformed
+            n_splits (int): The number of splits for k-fold validation
+            random_state: Optional random state for k-fold validation
+
+        Returns:
+            A dict-of-dicts indexing edge maps by initial node, followed by final node
+        """
         node_labels = list(self.node_structure.keys())
         all_edge_maps = {node: {} for node in node_labels}
         kfold = KFold(n_splits=n_splits, shuffle=True, random_state=random_state)
@@ -117,4 +214,7 @@ class EdgeMapRegression:
         return self.edge_maps
 
     def get_edge_maps(self):
+        """
+        Retrieves the edge maps.
+        """
         return self.edge_maps

@@ -16,12 +16,26 @@ from scipy.stats import gaussian_kde
 
 
 class DataQuiverRepConstructor:
+    """
+    Construct one or more quiver representations describing relationships between features in a dataset. Please see
+        self.fit_one_quiver_rep for more information.
+
+    Parameters:
+        node_structure (dict): Each node is associated with a list of column names arising from a Pandas DataFrame.
+        edge_maps (dict[dict]): A collection of NumPy arrays describing edge maps, a subset of which will be chosen for each
+            quiver representation.
+        default_node_limit: Optional specification for the maximum number of nodes in each quiver constructed, otherwise
+            defaulting to the total number of nodes.
+        default_build_direction: Optional specification for a build direction if not specified later on. Possibilities are:
+            "incoming", "outgoing", or "incoming-outgoing". Defaults to "incoming-outgoing".
+    """
+
     def __init__(
         self,
         node_structure,
         edge_maps,
         default_node_limit=None,
-        default_build_direction=None,
+        default_build_direction="incoming-outgoing",
     ):
         self.node_structure = node_structure
         self.edge_maps = edge_maps
@@ -33,9 +47,6 @@ class DataQuiverRepConstructor:
             self.default_node_limit = min([default_node_limit, self.num_nodes])
         else:
             self.default_node_limit = self.num_nodes
-
-        # Set default build direction
-        self.default_build_direction = default_build_direction or "incoming-outgoing"
 
         # Generate a unique id for each quiver representation
         self._qrep_id_counter = 0
@@ -141,6 +152,32 @@ class DataQuiverRepConstructor:
         qrep_name=None,
         save_qrep=True,
     ):
+        """
+        Construct a quiver representation from a dataset by successively attaching directed edges that minimize a path entropy
+        score. Specify a reference node using either ref_index or ref_node to choose the first node to include in the quiver,
+        at layer 0. Recursively, new nodes are added by choosing an edge that minimizes an entropy score, and attaching the
+        edge directed from some layer i to i+1. This process terminates when all nodes are added to the quiver, or after a
+        specified node limit is reached.
+
+        Note that the quiver and its representation are constructed simultaneously, and the NetworkX DiGraph constructed contains
+        both the quiver (nodes and edges) and its representation (vector space bases and edge maps).
+
+        Parameters:
+            data: Pandas DataFrame whose columns must include the column names contained in self.node_structure
+            ref_index: Specify a reference node by its index in self.nodes. Either ref_index or ref_node must be specified.
+            ref_node: Specify a reference node contained in self.nodes. Either ref_index or ref_node must be specified.
+            build_direction: Optional specification for a build direction, otherwise defaulting to self.default_build_direction.
+                Possibilities are: "incoming", "outgoing", or "incoming-outgoing".
+            node_limit: Optional specification for the maximum number of nodes to appear in the quiver, otherwise defaulting
+                to self.default_node_limit.
+            qrep_name: Optional name for the quiver representation.
+            save_qrep: Defaults to True. When set to True, saves the quiver to self.saved_qreps, a running list of quiver
+                representations constructed during the session.
+
+        Returns:
+            A NetworkX DiGraph with the quiver representation structure specified by node attributes 'dimension' and 'basis',
+                and edge attribute 'edge_map'
+        """
 
         # Validate ref_index and ref_node
         if not self._validate_ref_node(ref_index, ref_node):
@@ -222,15 +259,37 @@ class DataQuiverRepConstructor:
     def fit_transform(
         self,
         data,
+        ref_indices: list = [],
+        ref_nodes: list = [],
         build_direction=None,
         build_directions: list = [],
         node_limit=None,
         node_limits: list = [],
         qrep_names: list = [],
-        ref_indices: list = [],
-        ref_nodes: list = [],
         save_qrep=True,
     ):
+        """
+        Construct multiple quiver representations from a dataset. A list of reference nodes must be specified, using either
+        ref_indices or ref_nodes.
+
+        Parameters:
+            data: Pandas DataFrame whose columns must include the column names contained in self.node_structure
+            ref_indices: Specify reference nodes by their indices in self.nodes. Either ref_indices or ref_nodes must be specified.
+            ref_nodes: Specify reference nodes contained in self.nodes. Either ref_indices or ref_nodes must be specified.
+            build_direction: Optional specification for a build direction, otherwise defaulting to self.default_build_direction.
+                Possibilities are: "incoming", "outgoing", or "incoming-outgoing".
+            build_directions: Optional specification of build directions for each quiver representation.
+            node_limit: Optional specification for the maximum number of nodes to appear in each quiver, otherwise defaulting
+                to self.default_node_limit.
+            node_limits: Optional specification of node limits for each quiver representation.
+            qrep_names: Optional names for each quiver representation.
+            save_qrep: Defaults to True. When set to True, saves each quiver to self.saved_qreps, a running list of quiver
+                representations constructed during the session.
+
+        Returns:
+            A list of NetworkX DiGraphs with the quiver representation structure specified by node attributes 'dimension' and
+                'basis', and edge attribute 'edge_map'
+        """
 
         # Validate ref_indices and ref_nodes
         if not self._validate_multiple_ref_nodes(ref_indices, ref_nodes):
@@ -276,24 +335,40 @@ class DataQuiverRepConstructor:
         return quiver_reps
 
     def get_most_recent_qrep(self):
+        """
+        Retrieves the most recently constructed quiver representation.
+        """
         return self.most_recent_qrep
 
     def get_saved_qreps(self):
+        """
+        Retrieves the list of all saved quiver representations.
+        """
         return self.saved_qreps
 
     def delete_saved_qreps(self):
+        """
+        Resets the list of all saved quiver representations.
+        """
         self.saved_qreps = []
 
-    ########## Recursive step to add new edges
+        ##########
 
     def _attach_next_edge(self):
+        """
+        Recursive step to add new edges to a quiver.
+        """
         self._get_new_edges()
         self._add_best_edge()
         self._remove_unusable_edges()
 
-    # Choose a new edge for the quiver by first adding eligible edges incident to the last-added node
     def _get_new_edges(self):
-        # Construct all valid edges incident to the last added node
+        """
+        Update a running list of edges to add to a quiver, by adding a list of new edges adjacent to the most
+        recently-added node.
+        """
+
+        # Construct all valid edges adjacent to the last added node
         direction = self._tempvals_qrep["nodes"][
             self._tempvals_addedge["last_added_node"]
         ]["direction"]
@@ -340,7 +415,9 @@ class DataQuiverRepConstructor:
         )
 
     def _add_best_edge(self):
-        # Determine the edge with the lowest entropy score and the new node incident to it
+        """
+        Determine the edge with the lowest entropy score given a list of possibilities
+        """
         _entropy_scores = [
             e["entropy"] for e in self._tempvals_addedge["next_edge_possibilities"]
         ]
@@ -371,21 +448,30 @@ class DataQuiverRepConstructor:
         print(f"{new_edge['edge']} to layer {new_layer}")
 
     def _remove_unusable_edges(self):
+        """
+        Update running lists of nodes and edges by removing the most recently added node and edge,
+        along with any edges that can no longer be added to the quiver.
+        """
         # Remove new node from list of unused nodes
         new_node = self._tempvals_addedge["last_added_node"]
         self._tempvals_addedge["unused_nodes"] = [
             node for node in self._tempvals_addedge["unused_nodes"] if node != new_node
         ]
-        # Remove all edges incident to the new node from the list of next edge possibilities
+        # Remove all edges adjacent to the new node from the list of next edge possibilities
         self._tempvals_addedge["next_edge_possibilities"] = [
             e
             for e in self._tempvals_addedge["next_edge_possibilities"]
             if (e["head"] != new_node and e["tail"] != new_node)
         ]
 
-    ########## Construct quiver representation from complete list of selected edges
-
     def _construct_quiver_representation(self, qrep_name=None):
+        """
+        Construct NetworkX DiGraph object given quiver representation information.
+
+        Parameters:
+            qrep_name (str): Optional name
+
+        """
         qrep_name = qrep_name or "Q"
         qrep = nx.DiGraph()
         qrep.graph.update({"name": qrep_name})
@@ -413,19 +499,26 @@ class DataQuiverRepConstructor:
 
         return qrep
 
-    ########## Auxiliary math and retrieval functions
-
     def _reset_temp_values(self):
+        """
+        Reset temporary values stored during the construction of a quiver representation.
+        """
         self._tempvals_data = deepcopy(self._initial_tempvals_data)
         self._tempvals_addedge = deepcopy(self._initial_tempvals_addedge)
         self._tempvals_qrep = deepcopy(self._initial_tempvals_qrep)
 
     def _filter_df_attrs(self, attr_dict):
+        """
+        Filter a dictionary of attributes, removing attributes in self._skipped_attrs.
+        """
         return {
             key: val for key, val in attr_dict.items() if key not in self._skipped_attrs
         }
 
     def _negative_log_pdf(self, x, pdf):
+        """
+        Evaluates -log(pdf(x)) at a single data point x.
+        """
         pdfx = pdf.evaluate(x)
         if np.abs(pdfx) < 1e-20:
             return 0
@@ -433,6 +526,10 @@ class DataQuiverRepConstructor:
             return -np.log(pdfx)[0]
 
     def _entropy_score(self, new_edge):
+        """
+        Estimates the Shannon differential entropy for the path residuals associated with the addition of a new edge to a
+        quiver representation.
+        """
         path_head = new_edge["path_head"]
         path_tail = new_edge["path_tail"]
         residuals = new_edge["residuals"]
@@ -458,6 +555,10 @@ class DataQuiverRepConstructor:
         return scaling_factor * np.array(samples).mean()
 
     def _compose_ref_path_map(self, new_edge):
+        """
+        Recursively computes the product of edge maps along a path connecting a new edge to the reference node. The path is
+        uniquely determined by new_edge and the existing quiver edges.
+        """
         direction = new_edge["direction"]
         head = new_edge["head"]
         tail = new_edge["tail"]
@@ -478,10 +579,17 @@ class DataQuiverRepConstructor:
         return ref_path_map
 
     def _has_vanishing_ref_path_map(self, new_edge):
+        """
+        Determines whether the path map of an edge is approximately the zero map.
+        """
         ref_path_map = new_edge["ref_path_map"]
         return np.abs(ref_path_map).sum() < 0.01
 
     def _node_data_actual(self, new_edge):
+        """
+        Retrieves the data at the head node of the path connecting a new edge to the reference node. This path is
+        uniquely determined.
+        """
         direction = new_edge["direction"]
         if direction == "incoming":
             return self._tempvals_data["ref_node_data"].copy()
@@ -490,6 +598,11 @@ class DataQuiverRepConstructor:
             return self._tempvals_data["data"][self.node_structure[head]]
 
     def _node_data_predicted(self, new_edge):
+        """
+        Calculates predicted data at the head node of the path connecting a new edge to the reference node. This
+        path is uniquely determined. The predicted data is the product of the data at the tail node of the path
+        with the path map of the path connecting the reference node to the new edge.
+        """
         direction = new_edge["direction"]
         ref_path_map = new_edge["ref_path_map"]
         if direction == "incoming":
@@ -507,6 +620,9 @@ class DataQuiverRepConstructor:
         return predicted
 
     def _enumerate_edges(self, direction):
+        """
+        Enumerates a list of edges that can be attached to the quiver at the most recently added node.
+        """
         if direction == "incoming":
             return [
                 (node, self._tempvals_addedge["last_added_node"])
@@ -519,18 +635,27 @@ class DataQuiverRepConstructor:
             ]
 
     def _get_path_tail(self, edge, direction):
+        """
+        Retrieve the tail node of the unique path connecting an edge to the reference node.
+        """
         if direction == "incoming":
             return edge[0]
         elif direction == "outgoing":
             return self._tempvals_qrep["graph"]["ref_node"]
 
     def _get_path_head(self, edge, direction):
+        """
+        Retrieve the head node of the unique path connecting an edge to the reference node.
+        """
         if direction == "incoming":
             return self._tempvals_qrep["graph"]["ref_node"]
         elif direction == "outgoing":
             return edge[1]
 
     def _construct_edge_objects(self, edges, direction):
+        """
+        Constructs dictionaries with relevant edge information.
+        """
         return [
             {
                 "direction": direction,
@@ -545,6 +670,9 @@ class DataQuiverRepConstructor:
         ]
 
     def _layer_of_new_node(self, new_edge):
+        """
+        Retrieve the layer of the node most recently added to a quiver.
+        """
         direction = new_edge["direction"]
         if direction == "incoming":
             closer_node = new_edge["head"]
@@ -554,6 +682,9 @@ class DataQuiverRepConstructor:
             return self._tempvals_qrep["nodes"][closer_node]["layer"] + 1
 
     def _new_node_from_new_edge(self, new_edge):
+        """
+        Determine the node contained in new_edge which is not already contained in the quiver.
+        """
         direction = new_edge["direction"]
         if direction == "incoming":
             return new_edge["tail"]
@@ -561,6 +692,9 @@ class DataQuiverRepConstructor:
             return new_edge["head"]
 
     def _previous_node_from_new_edge(self, new_edge):
+        """
+        Determine the node contained in new_edge which is already contained in the quiver.
+        """
         direction = new_edge["direction"]
         if direction == "incoming":
             return new_edge["head"]
@@ -570,6 +704,10 @@ class DataQuiverRepConstructor:
     ########## Validation of parameters
 
     def _validate_ref_node(self, ref_index, ref_node):
+        """
+        Validate whether one of ref_index and ref_node is specified, and if so, whether they match.
+        """
+
         # Check whether either a ref_index or a ref_node is specified
         if not ref_index and not ref_node:
             print("Please specify either a ref_node or a ref_index.")
@@ -577,13 +715,15 @@ class DataQuiverRepConstructor:
         # Check if both are specified but do not match
         if ref_index and ref_node and ref_node != self.nodes[ref_index]:
             print(
-                "The specified ref_index and ref_node do not match. Only one should be specified."
+                "Invalid parameters. If ref_index and ref_node are both specified then they must match."
             )
             return False
         return True
 
     def _validate_multiple_ref_nodes(self, ref_indices, ref_nodes):
-        # If both ref_indices and ref_nodes are specified, check whether they match
+        """
+        Validate whether one of ref_indices and ref_nodes is specified, and if so, whether they match.
+        """
         if len(ref_indices) > 0 and len(ref_nodes) > 0:
             if len(ref_indices) != len(ref_nodes):
                 print(
@@ -602,7 +742,10 @@ class DataQuiverRepConstructor:
     def _validate_multiple_qrep_params(
         self, num_qreps, build_directions, node_limits, qrep_names
     ):
-        # Check for validity of parameters
+        """
+        Validate whether the lists num_qreps, build_directions, node_limits, and qrep_names, among those with nonzero
+        length, have the same length.
+        """
         if not (
             (
                 len(build_directions) in [0, num_qreps]
@@ -611,27 +754,24 @@ class DataQuiverRepConstructor:
             )
         ):
             print(
-                "Invalid parameters. The lists build_directions, node_limits, or qrep_names must have length zero or the same length as the number of ref_nodes (or ref_indices)."
+                "Invalid parameters. The lists build_directions, node_limits, or qrep_names must have length zero or \
+                    the same length as the length of ref_nodes (or ref_indices)."
             )
             return False
         return True
 
     def _fill_values_ref_node(self, ref_index, ref_node):
+        """
+        If only one of ref_index and ref_node are specified, determine the correct value not specified.
+        """
         ref_index = ref_index or self.nodes.index(ref_node)
         ref_node = ref_node or self.nodes[ref_index]
         return ref_index, ref_node
 
-    def _fill_values_one_qrep_params(self, build_direction, node_limit):
-        if build_direction == "random":
-            build_direction = np.random.choice(
-                ["incoming", "outgoing", "incoming-outgoing"]
-            )
-        else:
-            build_direction = build_direction or self.default_build_direction
-        node_limit = node_limit or self.default_node_limit
-        return build_direction, node_limit
-
     def _fill_values_multiple_ref_nodes(self, ref_indices, ref_nodes):
+        """
+        If only one of ref_indices and ref_nodes are specified, determine the correct values not specified.
+        """
         if len(ref_indices) == 0 and len(ref_nodes) == 0:
             ref_indices = np.arange(self.num_nodes)
             ref_nodes = self.nodes
@@ -640,6 +780,14 @@ class DataQuiverRepConstructor:
         elif len(ref_nodes) == 0:
             ref_nodes = [self.nodes[ref_index] for ref_index in ref_indices]
         return ref_indices, ref_nodes
+
+    def _fill_values_one_qrep_params(self, build_direction, node_limit):
+        """
+        If build_direction or node_limit is not specified, set to the default values.
+        """
+        build_direction = build_direction or self.default_build_direction
+        node_limit = node_limit or self.default_node_limit
+        return build_direction, node_limit
 
     def _fill_values_multiple_qrep_params(
         self,
@@ -650,6 +798,9 @@ class DataQuiverRepConstructor:
         node_limits,
         qrep_names,
     ):
+        """
+        Reformats parameters into lists of length num_qreps, setting default values when necessary.
+        """
         build_direction = build_direction or self.default_build_direction
         node_limit = node_limit or self.default_node_limit
         if len(build_directions) == 0:
